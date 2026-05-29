@@ -802,19 +802,22 @@
             // Direct time format: 14:30, 14点30
             const directMatch = text.match(/(\d{1,2})[:\u70b9](\d{2})/);
             if (directMatch) {
-                const hour = parseInt(directMatch[1]);
+                let hour = parseInt(directMatch[1]);
                 const minute = parseInt(directMatch[2]);
+                // Apply AM/PM for direct format too
+                if ((text.includes('下午') || text.includes('晚上')) && hour < 12) hour += 12;
                 return `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`;
             }
             
             // Hour only: 14点, 15点
             const hourOnlyMatch = text.match(/(\d{1,2})\u70b9/);
             if (hourOnlyMatch) {
-                const hour = parseInt(hourOnlyMatch[1]);
+                let hour = parseInt(hourOnlyMatch[1]);
+                if ((text.includes('下午') || text.includes('晚上')) && hour < 12) hour += 12;
                 return `${String(hour).padStart(2,'0')}:00`;
             }
             
-            // Chinese time expressions
+            // Chinese time expressions with AM/PM context
             let hour = null;
             let minute = 0;
             
@@ -823,25 +826,27 @@
                 minute = 30;
             }
             
-            // Extract hour number
-            const hourMatch = text.match(/(\d{1,2})/);
-            if (hourMatch) {
-                hour = parseInt(hourMatch[1]);
+            // Determine AM/PM first
+            let isPM = false;
+            if (text.includes('下午') || text.includes('晚上')) {
+                isPM = true;
+            } else if (text.includes('中午')) {
+                isPM = true;
             }
+            
+            // Extract hour number - look for numbers after time indicators
+            // Try to match "3点" pattern first
+            const timePattern = text.match(/(?:早上|上午|中午|下午|晚上)?\s*(\d{1,2})\s*(?:点|[:\u70b9])/);
+            if (timePattern) {
+                hour = parseInt(timePattern[1]);
+            }
+            // Note: we don't fallback to any number, because numbers like "120" in "喂奶120" 
+            // are amounts, not times. Only extract time if there's a time indicator (点, :)
             
             if (hour === null) return null;
             
-            // Determine AM/PM
-            if (text.includes('下午') || text.includes('晚上')) {
-                if (hour < 12) hour += 12;
-            } else if (text.includes('早上') || text.includes('上午')) {
-                // Keep as is (AM)
-            } else if (text.includes('中午')) {
-                if (hour < 12) hour += 12;
-            }
-            
-            // If hour is 1-6 and no AM/PM specified, could be afternoon for baby feeding context
-            // But let's be conservative and keep as is unless specified
+            // Apply AM/PM
+            if (isPM && hour < 12) hour += 12;
             
             return `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`;
         }
