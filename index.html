@@ -266,6 +266,48 @@
             z-index: 1000;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
+        
+        .voice-btn {
+            position: fixed;
+            bottom: 96px;
+            right: 24px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: white;
+            color: #FF6B6B;
+            border: 2px solid #FF6B6B;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+        }
+        .voice-btn:active { transform: scale(0.95); }
+        .voice-btn.recording {
+            background: #FF6B6B;
+            color: white;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(255, 107, 107, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 107, 107, 0); }
+        }
+        
+        .voice-status {
+            position: fixed;
+            bottom: 160px;
+            right: 24px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            display: none;
+            z-index: 1000;
+        }
+        .voice-status.active { display: block; }
     </style>
 </head>
 <body>
@@ -316,6 +358,8 @@
     </div>
     
     <button class="export-btn" onclick="exportData()" title="导出数据">📤</button>
+    <button class="voice-btn" id="voiceBtn" onclick="toggleVoice()" title="语音输入">🎤</button>
+    <div class="voice-status" id="voiceStatus">点击开始语音...</div>
     <button class="fab" onclick="showModal()">+</button>
     
     <div class="modal" id="recordModal">
@@ -549,6 +593,136 @@
             alert('数据已导出！你也可以复制以下数据发送给 Hermes 生成报告：\n\n' + data.substring(0, 500) + '...');
         }
         
+        // Voice recognition
+        let recognition = null;
+        let isRecording = false;
+        
+        function initVoice() {
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recognition = new SpeechRecognition();
+                recognition.lang = 'zh-CN';
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                
+                recognition.onstart = function() {
+                    isRecording = true;
+                    document.getElementById('voiceBtn').classList.add('recording');
+                    document.getElementById('voiceStatus').textContent = '正在听...';
+                    document.getElementById('voiceStatus').classList.add('active');
+                };
+                
+                recognition.onend = function() {
+                    isRecording = false;
+                    document.getElementById('voiceBtn').classList.remove('recording');
+                    document.getElementById('voiceStatus').classList.remove('active');
+                };
+                
+                recognition.onresult = function(event) {
+                    const transcript = event.results[0][0].transcript;
+                    document.getElementById('voiceStatus').textContent = '识别: ' + transcript;
+                    document.getElementById('voiceStatus').classList.add('active');
+                    parseVoiceInput(transcript);
+                };
+                
+                recognition.onerror = function(event) {
+                    console.error('语音识别错误:', event.error);
+                    document.getElementById('voiceStatus').textContent = '识别失败，请重试';
+                    setTimeout(() => {
+                        document.getElementById('voiceStatus').classList.remove('active');
+                    }, 2000);
+                };
+            } else {
+                document.getElementById('voiceBtn').style.display = 'none';
+                console.log('浏览器不支持语音识别');
+            }
+        }
+        
+        function toggleVoice() {
+            if (!recognition) {
+                alert('您的浏览器不支持语音识别，请使用 Safari 或 Chrome');
+                return;
+            }
+            
+            if (isRecording) {
+                recognition.stop();
+            } else {
+                recognition.start();
+            }
+        }
+        
+        function parseVoiceInput(text) {
+            // Parse natural language input
+            text = text.trim().toLowerCase();
+            
+            let record = null;
+            const now = new Date();
+            const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+            
+            // Feeding patterns
+            const feedingMatch = text.match(/(喂奶|奶粉|母乳|瓶喂|亲喂).*?(\d+)/);
+            if (feedingMatch) {
+                const keyword = feedingMatch[1];
+                const amount = feedingMatch[2];
+                
+                if (text.includes('奶粉')) {
+                    record = { type: 'formula', label: '奶粉', amount: amount + 'ml', unit: 'ml', category: 'feeding', class: 'formula' };
+                } else if (text.includes('瓶喂') || text.includes('母乳')) {
+                    record = { type: 'breast', label: '母乳瓶喂', amount: amount + 'ml', unit: 'ml', category: 'feeding', class: 'breast' };
+                } else if (text.includes('亲喂') || text.includes('喂奶')) {
+                    record = { type: 'direct', label: '亲喂', amount: amount + '分钟', unit: '分钟', category: 'feeding', class: 'direct' };
+                }
+            }
+            
+            // Diaper patterns
+            if (!record) {
+                if (text.includes('大小便')) {
+                    record = { type: 'both', label: '大小便', amount: '', unit: '', category: 'diaper', class: 'both' };
+                } else if (text.includes('大便')) {
+                    record = { type: 'poo', label: '大便', amount: '', unit: '', category: 'diaper', class: 'poo' };
+                } else if (text.includes('小便')) {
+                    record = { type: 'pee', label: '小便', amount: '', unit: '', category: 'diaper', class: 'pee' };
+                } else if (text.includes('换尿布') || text.includes('尿布')) {
+                    record = { type: 'diaper-change', label: '换尿布', amount: '', unit: '', category: 'diaper', class: 'diaper-change' };
+                }
+            }
+            
+            if (record) {
+                record.id = Date.now();
+                record.time = timeStr;
+                record.note = '';
+                record.date = new Date().toISOString().split('T')[0];
+                
+                records.push(record);
+                localStorage.setItem('babyRecords', JSON.stringify(records));
+                
+                renderRecords();
+                updateStats();
+                
+                // Show success feedback
+                document.getElementById('voiceStatus').textContent = `✅ 已记录: ${record.label} ${record.amount}`;
+                setTimeout(() => {
+                    document.getElementById('voiceStatus').classList.remove('active');
+                }, 2000);
+                
+                // Speak feedback (optional)
+                if ('speechSynthesis' in window) {
+                    const utterance = new SpeechSynthesisUtterance(`已记录${record.label}${record.amount}`);
+                    utterance.lang = 'zh-CN';
+                    speechSynthesis.speak(utterance);
+                }
+            } else {
+                document.getElementById('voiceStatus').textContent = '❌ 无法识别，请重试';
+                setTimeout(() => {
+                    document.getElementById('voiceStatus').classList.remove('active');
+                }, 2000);
+            }
+        }
+        
+        // Initialize voice on load
+        document.addEventListener('DOMContentLoaded', function() {
+            initVoice();
+        });
         // Close modal when clicking outside
         document.getElementById('recordModal').addEventListener('click', function(e) {
             if (e.target === this) hideModal();
