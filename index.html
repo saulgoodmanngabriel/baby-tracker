@@ -729,11 +729,13 @@
             
             // Priority matching: more specific patterns first
             if (text.includes('奶粉')) {
-                record = { type: 'formula', label: '奶粉', amount: amount + 'ml', unit: 'ml', category: 'feeding', class: 'formula' };
-            } else if (text.includes('瓶喂') || (text.includes('母乳') && amount)) {
+                record = { type: 'formula', label: '奶粉', amount: amount ? amount + 'ml' : '', unit: 'ml', category: 'feeding', class: 'formula' };
+            } else if (text.includes('瓶喂')) {
+                record = { type: 'breast', label: '母乳瓶喂', amount: amount ? amount + 'ml' : '', unit: 'ml', category: 'feeding', class: 'breast' };
+            } else if (text.includes('母乳') && amount) {
                 record = { type: 'breast', label: '母乳瓶喂', amount: amount + 'ml', unit: 'ml', category: 'feeding', class: 'breast' };
             } else if (text.includes('亲喂')) {
-                record = { type: 'direct', label: '亲喂', amount: amount + '分钟', unit: '分钟', category: 'feeding', class: 'direct' };
+                record = { type: 'direct', label: '亲喂', amount: amount ? amount + '分钟' : '', unit: '分钟', category: 'feeding', class: 'direct' };
             } else if (text.includes('喂奶') && amount) {
                 // Generic "喂奶" - check if number is likely ml (bigger numbers = ml)
                 const num = parseInt(amount);
