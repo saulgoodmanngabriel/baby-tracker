@@ -728,21 +728,22 @@
             const amount = numMatch ? numMatch[1] : '';
             
             // Priority matching: more specific patterns first
+            // amount field stores ONLY the number, unit is stored separately
             if (text.includes('奶粉')) {
-                record = { type: 'formula', label: '奶粉', amount: amount ? amount + 'ml' : '', unit: 'ml', category: 'feeding', class: 'formula' };
+                record = { type: 'formula', label: '奶粉', amount: amount, unit: 'ml', category: 'feeding', class: 'formula' };
             } else if (text.includes('瓶喂')) {
-                record = { type: 'breast', label: '母乳瓶喂', amount: amount ? amount + 'ml' : '', unit: 'ml', category: 'feeding', class: 'breast' };
+                record = { type: 'breast', label: '母乳瓶喂', amount: amount, unit: 'ml', category: 'feeding', class: 'breast' };
             } else if (text.includes('母乳') && amount) {
-                record = { type: 'breast', label: '母乳瓶喂', amount: amount + 'ml', unit: 'ml', category: 'feeding', class: 'breast' };
+                record = { type: 'breast', label: '母乳瓶喂', amount: amount, unit: 'ml', category: 'feeding', class: 'breast' };
             } else if (text.includes('亲喂')) {
-                record = { type: 'direct', label: '亲喂', amount: amount ? amount + '分钟' : '', unit: '分钟', category: 'feeding', class: 'direct' };
+                record = { type: 'direct', label: '亲喂', amount: amount, unit: '分钟', category: 'feeding', class: 'direct' };
             } else if (text.includes('喂奶') && amount) {
                 // Generic "喂奶" - check if number is likely ml (bigger numbers = ml)
                 const num = parseInt(amount);
                 if (num >= 30) {
-                    record = { type: 'formula', label: '奶粉', amount: amount + 'ml', unit: 'ml', category: 'feeding', class: 'formula' };
+                    record = { type: 'formula', label: '奶粉', amount: amount, unit: 'ml', category: 'feeding', class: 'formula' };
                 } else {
-                    record = { type: 'direct', label: '亲喂', amount: amount + '分钟', unit: '分钟', category: 'feeding', class: 'direct' };
+                    record = { type: 'direct', label: '亲喂', amount: amount, unit: '分钟', category: 'feeding', class: 'direct' };
                 }
             }
             
@@ -778,15 +779,17 @@
                 updateStats();
                 
                 // Show success feedback
+                const amountDisplay = record.amount ? `${record.amount}${record.unit}` : '';
                 const dateDisplay = dateStr === new Date().toISOString().split('T')[0] ? '' : ` (${dateStr})`;
-                document.getElementById('voiceStatus').textContent = `✅ 已记录${dateDisplay}: ${record.label} ${record.amount}`;
+                document.getElementById('voiceStatus').textContent = `✅ 已记录${dateDisplay}: ${record.label} ${amountDisplay}`;
                 setTimeout(() => {
                     document.getElementById('voiceStatus').classList.remove('active');
                 }, 2000);
                 
                 // Speak feedback (optional)
                 if ('speechSynthesis' in window) {
-                    const utterance = new SpeechSynthesisUtterance(`已记录${record.label}${record.amount}`);
+                    const speakAmount = record.amount ? `${record.amount}${record.unit}` : '';
+                    const utterance = new SpeechSynthesisUtterance(`已记录${record.label}${speakAmount}`);
                     utterance.lang = 'zh-CN';
                     speechSynthesis.speak(utterance);
                 }
