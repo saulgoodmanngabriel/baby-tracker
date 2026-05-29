@@ -566,7 +566,7 @@
                 feedingContainer.innerHTML = feedings.map(r => `
                     <div class="event ${r.class}">
                         <div class="event-time">${r.time}</div>
-                        <div class="event-label">${r.label} ${r.amount ? r.amount + r.unit : ''}</div>
+                        <div class="event-label">${r.label}${r.amount ? ' ' + r.amount + r.unit : ''}</div>
                         ${r.note ? `<div class="event-note">${r.note}</div>` : ''}
                     </div>
                 `).join('');
@@ -780,8 +780,9 @@
                 
                 // Show success feedback
                 const amountDisplay = record.amount ? `${record.amount}${record.unit}` : '';
+                const displayText = amountDisplay ? `${record.label} ${amountDisplay}` : record.label;
                 const dateDisplay = dateStr === new Date().toISOString().split('T')[0] ? '' : ` (${dateStr})`;
-                document.getElementById('voiceStatus').textContent = `✅ 已记录${dateDisplay}: ${record.label} ${amountDisplay}`;
+                document.getElementById('voiceStatus').textContent = `✅ 已记录${dateDisplay}: ${displayText}`;
                 setTimeout(() => {
                     document.getElementById('voiceStatus').classList.remove('active');
                 }, 2000);
