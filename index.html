@@ -620,17 +620,37 @@
                 
                 recognition.onresult = function(event) {
                     const transcript = event.results[0][0].transcript;
+                    console.log('语音识别结果:', transcript);
                     document.getElementById('voiceStatus').textContent = '识别: ' + transcript;
                     document.getElementById('voiceStatus').classList.add('active');
-                    parseVoiceInput(transcript);
+                    
+                    // Add a small delay to show the recognized text before processing
+                    setTimeout(() => {
+                        parseVoiceInput(transcript);
+                    }, 500);
                 };
                 
                 recognition.onerror = function(event) {
                     console.error('语音识别错误:', event.error);
-                    document.getElementById('voiceStatus').textContent = '识别失败，请重试';
+                    let errorMsg = '识别失败';
+                    
+                    // iOS Safari specific errors
+                    if (event.error === 'not-allowed') {
+                        errorMsg = '请允许麦克风权限';
+                    } else if (event.error === 'no-speech') {
+                        errorMsg = '没有听到声音，请重试';
+                    } else if (event.error === 'network') {
+                        errorMsg = '网络错误，请检查连接';
+                    } else if (event.error === 'aborted') {
+                        errorMsg = '识别已取消';
+                    } else {
+                        errorMsg = '识别失败: ' + event.error;
+                    }
+                    
+                    document.getElementById('voiceStatus').textContent = '❌ ' + errorMsg;
                     setTimeout(() => {
                         document.getElementById('voiceStatus').classList.remove('active');
-                    }, 2000);
+                    }, 3000);
                 };
             } else {
                 document.getElementById('voiceBtn').style.display = 'none';
