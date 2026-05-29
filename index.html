@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#FF9F43">
+    <title>宝宝喂养记录</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f5f5f5;
+            padding-bottom: 100px;
+        }
+        .header {
+            background: linear-gradient(135deg, #FF9F43 0%, #FF6B6B 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .header h1 { font-size: 20px; font-weight: 600; }
+        .header .date { font-size: 14px; opacity: 0.9; margin-top: 4px; }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            padding: 16px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            padding: 16px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .stat-value { font-size: 28px; font-weight: bold; color: #333; }
+        .stat-label { font-size: 12px; color: #999; margin-top: 4px; }
+        .stat-value.milk { color: #FF9F43; }
+        .stat-value.diaper { color: #45B7D1; }
+        .stat-value.feed { color: #4ECDC4; }
+        
+        .section {
+            background: white;
+            margin: 12px 16px;
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .section-title .icon { font-size: 20px; }
+        
+        .timeline {
+            position: relative;
+            padding-left: 24px;
+        }
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 6px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #e0e0e0;
+        }
+        .event {
+            position: relative;
+            padding: 10px 0 10px 16px;
+            border-left: 3px solid;
+            margin-bottom: 6px;
+            border-radius: 0 8px 8px 0;
+            background: #fafafa;
+        }
+        .event::before {
+            content: '';
+            position: absolute;
+            left: -23px;
+            top: 14px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: white;
+            border: 2px solid;
+            border-color: inherit;
+        }
+        .event-time { font-size: 13px; color: #999; }
+        .event-label { font-size: 15px; font-weight: 500; margin-top: 2px; }
+        .event-note { font-size: 12px; color: #999; margin-top: 2px; }
+        
+        .formula { border-left-color: #FF9F43; }
+        .formula::before { border-color: #FF9F43; }
+        .formula .event-label { color: #FF9F43; }
+        
+        .breast { border-left-color: #FF6B6B; }
+        .breast::before { border-color: #FF6B6B; }
+        .breast .event-label { color: #FF6B6B; }
+        
+        .direct { border-left-color: #4ECDC4; }
+        .direct::before { border-color: #4ECDC4; }
+        .direct .event-label { color: #4ECDC4; }
+        
+        .poo { border-left-color: #96CEB4; }
+        .poo::before { border-color: #96CEB4; }
+        .poo .event-label { color: #96CEB4; }
+        
+        .pee { border-left-color: #45B7D1; }
+        .pee::before { border-color: #45B7D1; }
+        .pee .event-label { color: #45B7D1; }
+        
+        .both { border-left-color: #FFEAA7; }
+        .both::before { border-color: #FFEAA7; }
+        .both .event-label { color: #d4a017; }
+        
+        .diaper-change { border-left-color: #DDA0DD; }
+        .diaper-change::before { border-color: #DDA0DD; }
+        .diaper-change .event-label { color: #DDA0DD; }
+        
+        .fab {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #FF9F43 0%, #FF6B6B 100%);
+            color: white;
+            border: none;
+            font-size: 24px;
+            box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
+            cursor: pointer;
+            z-index: 1000;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            justify-content: flex-end;
+            flex-direction: column;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: white;
+            border-radius: 24px 24px 0 0;
+            padding: 24px;
+            animation: slideUp 0.3s ease;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .type-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .type-btn {
+            padding: 16px;
+            border-radius: 16px;
+            border: 2px solid #eee;
+            background: white;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .type-btn:active { transform: scale(0.95); }
+        .type-btn.selected {
+            border-color: #FF9F43;
+            background: #FFF5EE;
+        }
+        .type-btn .emoji { font-size: 28px; display: block; margin-bottom: 4px; }
+        .type-btn .label { font-size: 13px; color: #666; }
+        
+        .input-group {
+            margin-bottom: 16px;
+        }
+        .input-group label {
+            display: block;
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid #eee;
+            border-radius: 12px;
+            font-size: 16px;
+            -webkit-appearance: none;
+        }
+        .input-group input:focus {
+            outline: none;
+            border-color: #FF9F43;
+        }
+        
+        .btn-primary {
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            border: none;
+            background: linear-gradient(135deg, #FF9F43 0%, #FF6B6B 100%);
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-primary:active { opacity: 0.9; }
+        
+        .btn-cancel {
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            border: none;
+            background: #f5f5f5;
+            color: #666;
+            font-size: 16px;
+            margin-top: 8px;
+            cursor: pointer;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        .empty-state .emoji { font-size: 48px; margin-bottom: 12px; }
+        .empty-state p { font-size: 14px; }
+        
+        .export-btn {
+            position: fixed;
+            bottom: 24px;
+            left: 24px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: white;
+            color: #FF9F43;
+            border: 2px solid #FF9F43;
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 宝宝喂养记录</h1>
+        <div class="date" id="currentDate">2026年5月29日</div>
+    </div>
+    
+    <div class="stats">
+        <div class="stat-card">
+            <div class="stat-value feed" id="feedCount">0</div>
+            <div class="stat-label">喂奶次数</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value milk" id="totalMilk">0ml</div>
+            <div class="stat-label">总奶量</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value diaper" id="diaperCount">0</div>
+            <div class="stat-label">排便/换尿布</div>
+        </div>
+    </div>
+    
+    <div class="section">
+        <div class="section-title">
+            <span class="icon">🍼</span>
+            喂奶记录
+        </div>
+        <div class="timeline" id="feedingTimeline">
+            <div class="empty-state">
+                <div class="emoji">🍼</div>
+                <p>今天还没有喂奶记录</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="section">
+        <div class="section-title">
+            <span class="icon">💩</span>
+            排便记录
+        </div>
+        <div class="timeline" id="diaperTimeline">
+            <div class="empty-state">
+                <div class="emoji">💩</div>
+                <p>今天还没有排便记录</p>
+            </div>
+        </div>
+    </div>
+    
+    <button class="export-btn" onclick="exportData()" title="导出数据">📤</button>
+    <button class="fab" onclick="showModal()">+</button>
+    
+    <div class="modal" id="recordModal">
+        <div class="modal-content">
+            <div class="modal-title">记录新事件</div>
+            
+            <div class="type-grid">
+                <div class="type-btn" data-type="formula" onclick="selectType(this)">
+                    <span class="emoji">🍼</span>
+                    <span class="label">奶粉</span>
+                </div>
+                <div class="type-btn" data-type="breast" onclick="selectType(this)">
+                    <span class="emoji">🤱</span>
+                    <span class="label">母乳瓶喂</span>
+                </div>
+                <div class="type-btn" data-type="direct" onclick="selectType(this)">
+                    <span class="emoji">👩‍🍼</span>
+                    <span class="label">亲喂</span>
+                </div>
+                <div class="type-btn" data-type="poo" onclick="selectType(this)">
+                    <span class="emoji">💩</span>
+                    <span class="label">大便</span>
+                </div>
+                <div class="type-btn" data-type="pee" onclick="selectType(this)">
+                    <span class="emoji">💧</span>
+                    <span class="label">小便</span>
+                </div>
+                <div class="type-btn" data-type="both" onclick="selectType(this)">
+                    <span class="emoji">💩💧</span>
+                    <span class="label">大小便</span>
+                </div>
+                <div class="type-btn" data-type="diaper-change" onclick="selectType(this)">
+                    <span class="emoji">🩲</span>
+                    <span class="label">换尿布</span>
+                </div>
+            </div>
+            
+            <div class="input-group" id="amountGroup" style="display:none;">
+                <label id="amountLabel">奶量（ml）</label>
+                <input type="number" id="amountInput" placeholder="输入数值...">
+            </div>
+            
+            <div class="input-group">
+                <label>时间（可选，默认现在）</label>
+                <input type="time" id="timeInput">
+            </div>
+            
+            <div class="input-group">
+                <label>备注（可选）</label>
+                <input type="text" id="noteInput" placeholder="例如：左侧、睡前奶...">
+            </div>
+            
+            <button class="btn-primary" onclick="saveRecord()">保存记录</button>
+            <button class="btn-cancel" onclick="hideModal()">取消</button>
+        </div>
+    </div>
+
+    <script>
+        // Data storage
+        let records = JSON.parse(localStorage.getItem('babyRecords') || '[]');
+        let selectedType = null;
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            updateDate();
+            renderRecords();
+            updateStats();
+        });
+        
+        function updateDate() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
+            const day = now.getDate();
+            document.getElementById('currentDate').textContent = `${year}年${month}月${day}日`;
+        }
+        
+        function showModal() {
+            document.getElementById('recordModal').classList.add('active');
+            // Set default time to now
+            const now = new Date();
+            const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+            document.getElementById('timeInput').value = timeStr;
+        }
+        
+        function hideModal() {
+            document.getElementById('recordModal').classList.remove('active');
+            selectedType = null;
+            document.querySelectorAll('.type-btn').forEach(btn => btn.classList.remove('selected'));
+            document.getElementById('amountInput').value = '';
+            document.getElementById('noteInput').value = '';
+            document.getElementById('amountGroup').style.display = 'none';
+        }
+        
+        function selectType(btn) {
+            document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            selectedType = btn.dataset.type;
+            
+            // Show/hide amount input based on type
+            const amountGroup = document.getElementById('amountGroup');
+            const amountLabel = document.getElementById('amountLabel');
+            
+            if (selectedType === 'formula' || selectedType === 'breast') {
+                amountGroup.style.display = 'block';
+                amountLabel.textContent = '奶量（ml）';
+            } else if (selectedType === 'direct') {
+                amountGroup.style.display = 'block';
+                amountLabel.textContent = '时长（分钟）';
+            } else {
+                amountGroup.style.display = 'none';
+            }
+        }
+        
+        function saveRecord() {
+            if (!selectedType) {
+                alert('请选择记录类型');
+                return;
+            }
+            
+            const timeInput = document.getElementById('timeInput').value;
+            const amount = document.getElementById('amountInput').value;
+            const note = document.getElementById('noteInput').value;
+            
+            const time = timeInput || new Date().toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit'});
+            
+            const typeLabels = {
+                'formula': { label: '奶粉', unit: 'ml', category: 'feeding', class: 'formula' },
+                'breast': { label: '母乳瓶喂', unit: 'ml', category: 'feeding', class: 'breast' },
+                'direct': { label: '亲喂', unit: '分钟', category: 'feeding', class: 'direct' },
+                'poo': { label: '大便', unit: '', category: 'diaper', class: 'poo' },
+                'pee': { label: '小便', unit: '', category: 'diaper', class: 'pee' },
+                'both': { label: '大小便', unit: '', category: 'diaper', class: 'both' },
+                'diaper-change': { label: '换尿布', unit: '', category: 'diaper', class: 'diaper-change' }
+            };
+            
+            const typeInfo = typeLabels[selectedType];
+            const record = {
+                id: Date.now(),
+                time: time,
+                type: selectedType,
+                label: typeInfo.label,
+                amount: amount,
+                unit: typeInfo.unit,
+                note: note,
+                category: typeInfo.category,
+                class: typeInfo.class,
+                date: new Date().toISOString().split('T')[0]
+            };
+            
+            records.push(record);
+            localStorage.setItem('babyRecords', JSON.stringify(records));
+            
+            renderRecords();
+            updateStats();
+            hideModal();
+        }
+        
+        function renderRecords() {
+            const today = new Date().toISOString().split('T')[0];
+            const todayRecords = records.filter(r => r.date === today);
+            
+            const feedings = todayRecords.filter(r => r.category === 'feeding').sort((a,b) => a.time.localeCompare(b.time));
+            const diapers = todayRecords.filter(r => r.category === 'diaper').sort((a,b) => a.time.localeCompare(b.time));
+            
+            // Render feedings
+            const feedingContainer = document.getElementById('feedingTimeline');
+            if (feedings.length === 0) {
+                feedingContainer.innerHTML = `
+                    <div class="empty-state">
+                        <div class="emoji">🍼</div>
+                        <p>今天还没有喂奶记录</p>
+                    </div>`;
+            } else {
+                feedingContainer.innerHTML = feedings.map(r => `
+                    <div class="event ${r.class}">
+                        <div class="event-time">${r.time}</div>
+                        <div class="event-label">${r.label} ${r.amount ? r.amount + r.unit : ''}</div>
+                        ${r.note ? `<div class="event-note">${r.note}</div>` : ''}
+                    </div>
+                `).join('');
+            }
+            
+            // Render diapers
+            const diaperContainer = document.getElementById('diaperTimeline');
+            if (diapers.length === 0) {
+                diaperContainer.innerHTML = `
+                    <div class="empty-state">
+                        <div class="emoji">💩</div>
+                        <p>今天还没有排便记录</p>
+                    </div>`;
+            } else {
+                diaperContainer.innerHTML = diapers.map(r => `
+                    <div class="event ${r.class}">
+                        <div class="event-time">${r.time}</div>
+                        <div class="event-label">${r.label}</div>
+                        ${r.note ? `<div class="event-note">${r.note}</div>` : ''}
+                    </div>
+                `).join('');
+            }
+        }
+        
+        function updateStats() {
+            const today = new Date().toISOString().split('T')[0];
+            const todayRecords = records.filter(r => r.date === today);
+            
+            const feedings = todayRecords.filter(r => r.category === 'feeding');
+            const totalMl = feedings.reduce((sum, r) => {
+                if (r.unit === 'ml') return sum + (parseInt(r.amount) || 0);
+                return sum;
+            }, 0);
+            
+            const diapers = todayRecords.filter(r => r.category === 'diaper');
+            
+            document.getElementById('feedCount').textContent = feedings.length;
+            document.getElementById('totalMilk').textContent = totalMl + 'ml';
+            document.getElementById('diaperCount').textContent = diapers.length;
+        }
+        
+        function exportData() {
+            const data = JSON.stringify(records, null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `baby-records-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            // Also show as text for copying
+            alert('数据已导出！你也可以复制以下数据发送给 Hermes 生成报告：\n\n' + data.substring(0, 500) + '...');
+        }
+        
+        // Close modal when clicking outside
+        document.getElementById('recordModal').addEventListener('click', function(e) {
+            if (e.target === this) hideModal();
+        });
+    </script>
+</body>
+</html>
