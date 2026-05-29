@@ -26,6 +26,25 @@
         .header h1 { font-size: 20px; font-weight: 600; }
         .header .date { font-size: 14px; opacity: 0.9; margin-top: 4px; }
         
+        .date-nav {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            margin-top: 8px;
+        }
+        .date-nav button {
+            background: rgba(255,255,255,0.3);
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .date-nav button:active { background: rgba(255,255,255,0.5); }
+        
         .stats {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -313,7 +332,11 @@
 <body>
     <div class="header">
         <h1>📊 番茄记录仪</h1>
-        <div class="date" id="currentDate">2026年5月29日</div>
+        <div class="date-nav">
+            <button onclick="changeDate(-1)">◀</button>
+            <div class="date" id="currentDate">2026年5月29日</div>
+            <button onclick="changeDate(1)">▶</button>
+        </div>
     </div>
     
     <div class="stats">
@@ -421,6 +444,7 @@
         // Data storage
         let records = JSON.parse(localStorage.getItem('babyRecords') || '[]');
         let selectedType = null;
+        let currentViewDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
         
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
@@ -430,11 +454,17 @@
         });
         
         function updateDate() {
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = now.getMonth() + 1;
-            const day = now.getDate();
+            const [year, month, day] = currentViewDate.split('-');
             document.getElementById('currentDate').textContent = `${year}年${month}月${day}日`;
+        }
+        
+        function changeDate(offset) {
+            const date = new Date(currentViewDate);
+            date.setDate(date.getDate() + offset);
+            currentViewDate = date.toISOString().split('T')[0];
+            updateDate();
+            renderRecords();
+            updateStats();
         }
         
         function showModal() {
@@ -507,7 +537,7 @@
                 note: note,
                 category: typeInfo.category,
                 class: typeInfo.class,
-                date: new Date().toISOString().split('T')[0]
+                date: currentViewDate
             };
             
             records.push(record);
@@ -519,11 +549,10 @@
         }
         
         function renderRecords() {
-            const today = new Date().toISOString().split('T')[0];
-            const todayRecords = records.filter(r => r.date === today);
+            const dayRecords = records.filter(r => r.date === currentViewDate);
             
-            const feedings = todayRecords.filter(r => r.category === 'feeding').sort((a,b) => a.time.localeCompare(b.time));
-            const diapers = todayRecords.filter(r => r.category === 'diaper').sort((a,b) => a.time.localeCompare(b.time));
+            const feedings = dayRecords.filter(r => r.category === 'feeding').sort((a,b) => a.time.localeCompare(b.time));
+            const diapers = dayRecords.filter(r => r.category === 'diaper').sort((a,b) => a.time.localeCompare(b.time));
             
             // Render feedings
             const feedingContainer = document.getElementById('feedingTimeline');
@@ -531,7 +560,7 @@
                 feedingContainer.innerHTML = `
                     <div class="empty-state">
                         <div class="emoji">🍼</div>
-                        <p>今天还没有喂奶记录</p>
+                        <p>这一天还没有喂奶记录</p>
                     </div>`;
             } else {
                 feedingContainer.innerHTML = feedings.map(r => `
@@ -549,7 +578,7 @@
                 diaperContainer.innerHTML = `
                     <div class="empty-state">
                         <div class="emoji">💩</div>
-                        <p>今天还没有排便记录</p>
+                        <p>这一天还没有排便记录</p>
                     </div>`;
             } else {
                 diaperContainer.innerHTML = diapers.map(r => `
@@ -563,18 +592,21 @@
         }
         
         function updateStats() {
-            const today = new Date().toISOString().split('T')[0];
-            const todayRecords = records.filter(r => r.date === today);
+            const dayRecords = records.filter(r => r.date === currentViewDate);
             
-            const feedings = todayRecords.filter(r => r.category === 'feeding');
+            // Group feedings by time for counting sessions
+            const feedings = dayRecords.filter(r => r.category === 'feeding');
+            const uniqueTimes = new Set(feedings.map(r => r.time));
+            const feedCount = uniqueTimes.size;
+            
             const totalMl = feedings.reduce((sum, r) => {
                 if (r.unit === 'ml') return sum + (parseInt(r.amount) || 0);
                 return sum;
             }, 0);
             
-            const diapers = todayRecords.filter(r => r.category === 'diaper');
+            const diapers = dayRecords.filter(r => r.category === 'diaper');
             
-            document.getElementById('feedCount').textContent = feedings.length;
+            document.getElementById('feedCount').textContent = feedCount;
             document.getElementById('totalMilk').textContent = totalMl + 'ml';
             document.getElementById('diaperCount').textContent = diapers.length;
         }
@@ -672,12 +704,24 @@
         }
         
         function parseVoiceInput(text) {
-            // Parse natural language input
+            // Parse natural language input with time extraction
             text = text.trim().toLowerCase();
             
             let record = null;
-            const now = new Date();
-            const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+            
+            // Extract time from text
+            let timeStr = extractTimeFromText(text);
+            if (!timeStr) {
+                // Default to current time if no time found
+                const now = new Date();
+                timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+            }
+            
+            // Extract date from text (e.g., "昨天", "前天", "5月30号")
+            let dateStr = extractDateFromText(text);
+            if (!dateStr) {
+                dateStr = currentViewDate;
+            }
             
             // Extract number from text
             const numMatch = text.match(/(\d+)/);
@@ -717,16 +761,23 @@
                 record.id = Date.now();
                 record.time = timeStr;
                 record.note = '';
-                record.date = new Date().toISOString().split('T')[0];
+                record.date = dateStr;
                 
                 records.push(record);
                 localStorage.setItem('babyRecords', JSON.stringify(records));
+                
+                // If recording for a different date, switch to that date
+                if (dateStr !== currentViewDate) {
+                    currentViewDate = dateStr;
+                    updateDate();
+                }
                 
                 renderRecords();
                 updateStats();
                 
                 // Show success feedback
-                document.getElementById('voiceStatus').textContent = `✅ 已记录: ${record.label} ${record.amount}`;
+                const dateDisplay = dateStr === new Date().toISOString().split('T')[0] ? '' : ` (${dateStr})`;
+                document.getElementById('voiceStatus').textContent = `✅ 已记录${dateDisplay}: ${record.label} ${record.amount}`;
                 setTimeout(() => {
                     document.getElementById('voiceStatus').classList.remove('active');
                 }, 2000);
@@ -743,6 +794,86 @@
                     document.getElementById('voiceStatus').classList.remove('active');
                 }, 2000);
             }
+        }
+        
+        function extractTimeFromText(text) {
+            // Match patterns like "14:30", "下午3点", "3点半", "15点", "3点15"
+            
+            // Direct time format: 14:30, 14点30
+            const directMatch = text.match(/(\d{1,2})[:\u70b9](\d{2})/);
+            if (directMatch) {
+                const hour = parseInt(directMatch[1]);
+                const minute = parseInt(directMatch[2]);
+                return `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`;
+            }
+            
+            // Hour only: 14点, 15点
+            const hourOnlyMatch = text.match(/(\d{1,2})\u70b9/);
+            if (hourOnlyMatch) {
+                const hour = parseInt(hourOnlyMatch[1]);
+                return `${String(hour).padStart(2,'0')}:00`;
+            }
+            
+            // Chinese time expressions
+            let hour = null;
+            let minute = 0;
+            
+            // Check for half (半)
+            if (text.includes('半')) {
+                minute = 30;
+            }
+            
+            // Extract hour number
+            const hourMatch = text.match(/(\d{1,2})/);
+            if (hourMatch) {
+                hour = parseInt(hourMatch[1]);
+            }
+            
+            if (hour === null) return null;
+            
+            // Determine AM/PM
+            if (text.includes('下午') || text.includes('晚上')) {
+                if (hour < 12) hour += 12;
+            } else if (text.includes('早上') || text.includes('上午')) {
+                // Keep as is (AM)
+            } else if (text.includes('中午')) {
+                if (hour < 12) hour += 12;
+            }
+            
+            // If hour is 1-6 and no AM/PM specified, could be afternoon for baby feeding context
+            // But let's be conservative and keep as is unless specified
+            
+            return `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`;
+        }
+        
+        function extractDateFromText(text) {
+            const today = new Date();
+            
+            if (text.includes('昨天')) {
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+                return yesterday.toISOString().split('T')[0];
+            } else if (text.includes('前天')) {
+                const dayBefore = new Date(today);
+                dayBefore.setDate(dayBefore.getDate() - 2);
+                return dayBefore.toISOString().split('T')[0];
+            } else if (text.includes('大前天')) {
+                const threeDaysAgo = new Date(today);
+                threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+                return threeDaysAgo.toISOString().split('T')[0];
+            }
+            
+            // Match specific date: "5月30号", "5月30日"
+            const dateMatch = text.match(/(\d{1,2})\u6708(\d{1,2})[\u53f7\u65e5]/);
+            if (dateMatch) {
+                const month = parseInt(dateMatch[1]) - 1; // 0-indexed
+                const day = parseInt(dateMatch[2]);
+                const year = today.getFullYear();
+                const date = new Date(year, month, day);
+                return date.toISOString().split('T')[0];
+            }
+            
+            return null;
         }
         
         // Initialize voice on load
